@@ -1,0 +1,1378 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mint Writer - v1.0</title>
+  <style>
+    :root {
+      --bg-base: #181825;
+      --bg-sidebar: #1e1e2e;
+      --bg-surface: #313244;
+      --bg-hover: #45475a;
+
+      /* 眼鏡を外していてもくっきり見える高視認性オフホワイト */
+      --text-main: #eff1f5;
+      --text-dim: #9399b2;
+
+      --accent: #89b4fa;
+      --accent-mint: #a6e3a1; /* やわらかなミントグリーン */
+      --save-green: #a6e3a1;
+      --unsaved-amber: #f9e2af;
+      --danger: #f38ba8;
+      
+      --font-mincho: "Yu Mincho", "YuMincho", "Toppan Bunkyu Mincho", "Hiragino Mincho ProN", "Noto Serif CJK JP", "IPAexMincho", serif;
+      --font-sans: "Hiragino Kaku Gothic ProN", "Noto Sans JP", -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* === サイドバー === */
+    #sidebar {
+      width: 350px;
+      min-width: 350px;
+      background-color: var(--bg-sidebar);
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--bg-surface);
+      transition: transform 0.25s ease, margin-left 0.25s ease;
+      z-index: 30;
+    }
+
+    #sidebar.hidden {
+      margin-left: -350px;
+    }
+
+    .sidebar-header {
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      border-bottom: 1px solid var(--bg-surface);
+    }
+
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Mint (ミント緑) 🌱 Writer (初期の青) */
+    .header-top h1 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      user-select: none;
+    }
+    .logo-mint {
+      color: #a6e3a1; /* やわらかなミントグリーン！ */
+    }
+    .logo-sprout {
+      font-size: 1rem;
+      opacity: 0.9;
+    }
+    .logo-writer {
+      color: var(--accent); /* 初期の控えめなアクセントブルー！ */
+    }
+
+    .header-tools {
+      display: flex;
+      gap: 6px;
+    }
+
+    .btn-header {
+      background: none;
+      border: 1px solid var(--bg-surface);
+      color: var(--text-main);
+      padding: 5px 9px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      transition: background 0.15s;
+    }
+    .btn-header:hover {
+      background: var(--bg-hover);
+    }
+
+    /* 実ファイル連携中の緑色バッジ */
+    .sync-active-badge {
+      color: var(--save-green);
+      font-weight: bold;
+      margin-left: 2px;
+      filter: drop-shadow(0 0 3px rgba(166, 227, 161, 0.4));
+    }
+
+    .tree-view {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 8px;
+    }
+
+    .tree-project {
+      margin-bottom: 10px;
+    }
+    .project-header, .shelf-header, .episode-item {
+      display: flex;
+      align-items: center;
+      padding: 8px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      user-select: none;
+      color: var(--text-main);
+      transition: background 0.15s;
+    }
+    .project-header:hover, .shelf-header:hover, .episode-item:hover {
+      background-color: var(--bg-surface);
+    }
+    .project-header {
+      font-weight: bold;
+      font-size: 1.05rem;
+    }
+    .shelf-container {
+      margin-left: 14px;
+      border-left: 1px dashed var(--bg-surface);
+      padding-left: 4px;
+    }
+    .shelf-header {
+      font-weight: 600;
+      font-size: 0.98rem;
+    }
+    .episode-container {
+      margin-left: 14px;
+      border-left: 1px dashed var(--bg-surface);
+      padding-left: 4px;
+    }
+    .episode-item {
+      font-size: 0.94rem;
+      font-weight: 400;
+      margin: 2px 0;
+    }
+    .episode-item.active {
+      background-color: var(--bg-surface);
+      color: var(--accent);
+      font-weight: bold;
+    }
+
+    .toggle-arrow {
+      font-size: 0.72rem;
+      width: 16px;
+      display: inline-block;
+      color: var(--text-dim);
+      transition: transform 0.15s;
+    }
+    .collapsed > .toggle-arrow {
+      transform: rotate(-90deg);
+    }
+    .collapsed + .shelf-container,
+    .collapsed + .episode-container {
+      display: none;
+    }
+
+    .item-title {
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-left: 6px;
+    }
+
+    .item-actions {
+      display: none;
+      gap: 4px;
+    }
+    .project-header:hover .item-actions,
+    .shelf-header:hover .item-actions,
+    .episode-item:hover .item-actions {
+      display: flex;
+    }
+    .action-btn {
+      background: none;
+      border: 1px solid var(--bg-surface);
+      color: var(--text-dim);
+      font-size: 0.72rem;
+      cursor: pointer;
+      padding: 2px 5px;
+      border-radius: 4px;
+    }
+    .action-btn:hover {
+      color: var(--text-main);
+      background-color: var(--bg-hover);
+    }
+    .action-btn.delete:hover {
+      color: var(--danger);
+    }
+
+    /* === メインエディタ === */
+    #main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background-color: var(--bg-base);
+      position: relative;
+      width: 100%;
+    }
+
+    .top-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 16px 0 0;
+      border-bottom: 1px solid var(--bg-surface);
+      height: 48px;
+    }
+
+    .toolbar-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      height: 100%;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    #btn-toggle-sidebar {
+      background: none;
+      border: none;
+      border-right: 1px solid var(--bg-surface);
+      color: var(--text-main);
+      height: 100%;
+      width: 52px;
+      cursor: pointer;
+      font-size: 1.15rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s;
+    }
+    #btn-toggle-sidebar:hover {
+      background: var(--bg-hover);
+    }
+
+    #current-breadcrumb {
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: var(--text-main);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: calc(100% - 70px);
+    }
+
+    .toolbar-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-icon-square {
+      background: none;
+      border: 1px solid var(--bg-surface);
+      color: var(--text-main);
+      width: 36px;
+      height: 36px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .btn-icon-square:hover {
+      background: var(--bg-hover);
+      border-color: var(--accent);
+    }
+
+    /* === 保存インジケーター（サイズ統一版） === */
+    #save-status {
+      font-size: 1.05rem;
+      margin-right: 6px;
+      cursor: default;
+      user-select: none;
+      display: inline-block;
+      line-height: 1;
+      transition: color 0.2s ease, transform 0.2s ease;
+    }
+
+    /* 保存済み：緑のチェックマーク */
+    #save-status.status-saved { 
+      color: var(--save-green) !important;
+    }
+
+    /* 未保存（執筆中）：同じサイズでしっかり光る琥珀色の丸 */
+    #save-status.status-unsaved { 
+      color: var(--unsaved-amber) !important;
+      font-weight: bold;
+      filter: drop-shadow(0 0 3px rgba(249, 226, 175, 0.6));
+    }
+
+    /* 保存完了時の控えめなピカッ */
+    #save-status.flash {
+      transform: scale(1.2);
+      filter: drop-shadow(0 0 5px var(--save-green));
+    }
+
+    .editor-wrapper {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 30px 40px 50px 40px;
+      overflow: auto;
+    }
+
+    #editor {
+      flex: 1;
+      background: none;
+      border: none;
+      outline: none;
+      resize: none;
+      color: var(--text-main);
+      font-family: var(--font-mincho);
+      font-size: 1.05rem;
+      line-height: 1.9;
+      letter-spacing: 0.04em;
+      caret-color: var(--accent);
+      min-height: 100%;
+      width: 100%;
+    }
+
+    #editor.vertical-mode {
+      writing-mode: vertical-rl;
+      -webkit-writing-mode: vertical-rl;
+      height: 100%;
+      width: auto;
+      min-width: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding: 10px 0;
+      line-height: 2.1;
+    }
+
+    .status-bar {
+      position: absolute;
+      bottom: 14px;
+      right: 24px;
+      background: rgba(24, 24, 37, 0.85);
+      border: 1px solid var(--bg-surface);
+      padding: 4px 14px;
+      border-radius: 20px;
+      font-size: 0.82rem;
+      color: var(--text-dim);
+      pointer-events: none;
+      backdrop-filter: blur(4px);
+    }
+
+    .empty-state {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: var(--text-dim);
+      font-size: 1rem;
+    }
+
+    /* スマホ用メニュー背景オーバーレイ */
+    #sidebar-backdrop {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(2px);
+      z-index: 25;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+    }
+
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.65);
+      backdrop-filter: blur(3px);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .modal-box {
+      background: var(--bg-sidebar);
+      border: 1px solid var(--bg-surface);
+      border-radius: 8px;
+      width: 90%;
+      max-width: 420px;
+      padding: 20px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    }
+    .modal-title {
+      font-size: 1.1rem;
+      font-weight: bold;
+      color: var(--accent);
+      margin-bottom: 14px;
+    }
+    .modal-input, .modal-select {
+      width: 100%;
+      background: var(--bg-base);
+      border: 1px solid var(--bg-surface);
+      color: var(--text-main);
+      padding: 10px 12px;
+      border-radius: 6px;
+      font-size: 1rem;
+      outline: none;
+      margin-bottom: 16px;
+    }
+    .modal-input:focus, .modal-select:focus {
+      border-color: var(--accent);
+    }
+    .modal-buttons {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: var(--bg-base);
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .btn-secondary {
+      background: none;
+      border: 1px solid var(--bg-surface);
+      color: var(--text-main);
+      padding: 8px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    @media (max-width: 768px) {
+      #sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        transform: translateX(0);
+        margin-left: 0;
+        box-shadow: 4px 0 20px rgba(0,0,0,0.6);
+      }
+      #sidebar.hidden {
+        transform: translateX(-100%);
+        margin-left: 0;
+      }
+      #sidebar-backdrop.active {
+        display: block;
+        opacity: 1;
+      }
+      .editor-wrapper {
+        padding: 20px 16px 60px 16px;
+      }
+      #editor {
+        font-size: 1.05rem;
+        line-height: 1.85;
+      }
+      .item-actions {
+        display: flex;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="sidebar-backdrop"></div>
+
+  <!-- サイドバー -->
+  <aside id="sidebar">
+    <div class="sidebar-header">
+      <div class="header-top">
+        <h1><span class="logo-mint">Mint</span><span class="logo-sprout">🌱</span><span class="logo-writer">Writer</span></h1>
+        <button class="btn-header" id="btn-add-project" title="新規作品追加">＋ 作品</button>
+      </div>
+      <div class="header-tools">
+        <button class="btn-header" id="btn-backup-json" title="全データを手元にJSON書き出し">📥 バックアップ</button>
+        <button class="btn-header" id="btn-restore-json" title="JSONファイルから全復元">📤 復元</button>
+        <button class="btn-header" id="btn-sync-file" title="ローカル実ファイルと直接連携">🔗 実ファイル</button>
+        <input type="file" id="file-restore-input" accept=".json" style="display: none;">
+      </div>
+    </div>
+    <div class="tree-view" id="tree-container"></div>
+  </aside>
+
+  <!-- メイン執筆画面 -->
+  <main id="main-content">
+    <div class="top-toolbar">
+      <div class="toolbar-left">
+        <button id="btn-toggle-sidebar" title="メニュー開閉">☰</button>
+        <span id="current-breadcrumb">未選択</span>
+      </div>
+      <!-- 最右端に保存、縦書き、コピーの3つに絞り込んだツールバー -->
+      <div class="toolbar-right">
+        <span id="save-status" class="status-saved" title="保存状態: 保存済み">✔</span>
+        <button class="btn-icon-square" id="btn-toggle-writing-mode" title="縦書き / 横書き 切替">↕️</button>
+        <button class="btn-icon-square" id="btn-copy-all" title="本文をコピー">📋</button>
+        <button class="btn-icon-square" id="btn-save-manual" title="保存 (Ctrl+S)">💾</button>
+      </div>
+    </div>
+
+    <div class="editor-wrapper" id="editor-container" style="display: none;">
+      <textarea id="editor" placeholder="ここに本文を執筆..."></textarea>
+    </div>
+
+    <div class="empty-state" id="empty-state">
+      左のツリーからエピソードを選択するか、新規作成してください。
+    </div>
+
+    <div class="status-bar" id="status-bar">
+      文字数: <span id="char-count">0</span>
+    </div>
+  </main>
+
+  <!-- 基本入力モーダル -->
+  <div class="modal-overlay" id="custom-modal">
+    <div class="modal-box">
+      <div class="modal-title" id="modal-title">項目を追加</div>
+      <input type="text" class="modal-input" id="modal-input" placeholder="タイトルを入力...">
+      <div class="modal-buttons">
+        <button class="btn-secondary" id="modal-cancel">キャンセル</button>
+        <button class="btn-primary" id="modal-submit">決定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 移動先指定モーダル -->
+  <div class="modal-overlay" id="move-modal">
+    <div class="modal-box">
+      <div class="modal-title">エピソードの移動先を指定</div>
+      <label style="font-size: 0.85rem; color: var(--text-dim); display: block; margin-bottom: 6px;">移動先の棚を選択:</label>
+      <select class="modal-select" id="move-select"></select>
+      <div class="modal-buttons">
+        <button class="btn-secondary" id="move-cancel">キャンセル</button>
+        <button class="btn-primary" id="move-submit">移動する</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 実ファイル連携の開始モーダル（無骨ポップアップ排除版） -->
+  <div class="modal-overlay" id="sync-init-modal">
+    <div class="modal-box" style="max-width: 440px;">
+      <div class="modal-title">実ファイル連携</div>
+      <p style="font-size: 0.9rem; color: var(--text-dim); margin-bottom: 16px; line-height: 1.6;">
+        実ファイルとの連携方法を選択してください。
+      </p>
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <button class="btn-primary" id="btn-init-new" style="text-align: left; padding: 12px 14px;">
+          📄 <b>新しく同期ファイルを作成する</b><br>
+          <span style="font-size: 0.78rem; opacity: 0.85; font-weight: normal;">ローカルに新規JSONファイルを作って連携を開始します</span>
+        </button>
+        <button class="btn-secondary" id="btn-init-open" style="text-align: left; padding: 12px 14px; border-color: var(--accent);">
+          📂 <b>すでにある既存ファイルを開く</b><br>
+          <span style="font-size: 0.78rem; color: var(--text-dim);">以前作成した実ファイルを選んで連携します</span>
+        </button>
+        <button class="btn-secondary" id="btn-init-cancel" style="margin-top: 6px;">キャンセル（何もしないで戻る）</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 実ファイル同期時の方向選択モーダル（手元消滅を絶対阻止する安全装置） -->
+  <div class="modal-overlay" id="sync-choice-modal">
+    <div class="modal-box" style="max-width: 480px;">
+      <div class="modal-title">実ファイルとの同期方法を選択</div>
+      <p style="font-size: 0.9rem; color: var(--text-dim); margin-bottom: 16px; line-height: 1.6;">
+        手元の画面（ブラウザ）にあるデータと、選択した実ファイル、どちらの内容を優先して連携を開始しますか？
+      </p>
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <button class="btn-primary" id="btn-sync-push" style="text-align: left; padding: 12px 14px;">
+          📤 <b>手元の内容をファイルへ上書き</b><br>
+          <span style="font-size: 0.78rem; opacity: 0.85; font-weight: normal;">いま編集していた最新テキストをファイルへ書き込みます</span>
+        </button>
+        <button class="btn-secondary" id="btn-sync-pull" style="text-align: left; padding: 12px 14px; border-color: var(--accent);">
+          📥 <b>ファイルの内容を手元に読み込む</b><br>
+          <span style="font-size: 0.78rem; color: var(--text-dim);">スマホ等で更新したファイル側の内容を画面に反映します</span>
+        </button>
+        <button class="btn-secondary" id="btn-sync-cancel" style="margin-top: 6px;">キャンセル（何もしない）</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * Mint Writer 🌱 v1.0
+     * Created by: アイス
+     * Born from Linux Mint & Crafted for Absolute Creative Freedom.
+     * Special Thanks: My Reliable AI Partner Gemini
+     */
+    const STORAGE_KEY = 'mintwriter_store_v1';
+    let fileHandle = null;
+    let isDirty = false;
+    let pendingFileHandle = null;
+    let pendingFileData = null;
+
+    // === 初めて使う人のための初期サンプルデータ ===
+    let appData = {
+      projects: [
+        {
+          id: 'p_guide',
+          title: 'Mint Writer へようこそ 🌱',
+          shelves: [
+            {
+              id: 's_guide_basic',
+              title: '使い方ガイド',
+              episodes: [
+                {
+                  id: 'e_guide_1',
+                  title: '1. 基本操作と保存',
+                  content: '【Mint Writer へようこそ！】\n\nこのエディタは、余計な設定や通知に邪魔されず、思いついた瞬間にサクッと書くための軽量ツールです。\n\n■ 基本操作\n・文字を入力すると、右上のマークが「●（編集中）」に変わります。\n・Ctrl+S または右端の「💾 保存」ボタンを押すと、「✔（保存完了）」になります。\n・原稿データはお使いの端末（ブラウザ）に自動で保持されます。\n\n■ ツールバー（右上）\n・↕️：縦書き / 横書き の切り替えができます。\n・📋：ワンタップで全文をコピーします（スマホ・PC両対応）。\n・💾：手動保存ボタンです。\n\n※このテキストは自由に書き換えるか、左メニューの「✕」で削除して構いません！'
+                },
+                {
+                  id: 'e_guide_2',
+                  title: '2. バックアップと連携',
+                  content: '■ バックアップ（超重要！）\nブラウザのキャッシュ消去によるデータ消失を防ぐため、定期的にバックアップを取りましょう。\n\n左メニュー上部の「📥 バックアップ」を押すだけで、全作品のデータ（.json）が手元に保存されます。\n\n■ スマホや別PCへのデータ移行\n1. 移行元で「📥 バックアップ」を押してJSONファイルを取得。\n2. ドライブやメール等で移したい端末へ送信。\n3. 移動先の Mint Writer で「📤 復元」を押し、そのファイルを選択すれば一瞬で元通りになります。\n\n■ PC専用機能：実ファイル連携\n左上の「🔗 実ファイル」を使うと、PC内の特定ファイルと直接つなぎ、Ctrl+S で直接上書きしていく運用が可能です。'
+                }
+              ]
+            },
+            {
+              id: 's_sample',
+              title: '構成サンプル',
+              episodes: [
+                {
+                  id: 'e_sample_1',
+                  title: '第1話（サンプル）',
+                  content: 'ここはあなたの作品を書く場所です。\n\n左側のツリーで「＋ 作品」「＋ 棚」「＋ 話」を押せば、自由に構成を増やせます。\nタイトルの変更は「✏️」、別の棚への移動は「⇄」、削除は「✕」から行えます。'
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    };
+
+    let activeEpisodeId = null;
+
+    // === サイドバー開閉コントロール ===
+    function setSidebarOpen(isOpen) {
+      const sidebar = document.getElementById('sidebar');
+      const backdrop = document.getElementById('sidebar-backdrop');
+      const toggleBtn = document.getElementById('btn-toggle-sidebar');
+
+      if (isOpen) {
+        sidebar.classList.remove('hidden');
+        backdrop.classList.add('active');
+        toggleBtn.textContent = '✕';
+      } else {
+        sidebar.classList.add('hidden');
+        backdrop.classList.remove('active');
+        toggleBtn.textContent = '☰';
+      }
+    }
+
+    function toggleSidebar() {
+      const sidebar = document.getElementById('sidebar');
+      const isCurrentlyHidden = sidebar.classList.contains('hidden');
+      setSidebarOpen(isCurrentlyHidden);
+    }
+
+    // === モーダル ===
+    let modalResolver = null;
+    function showModal(title, defaultValue = '', placeholder = '') {
+      return new Promise((resolve) => {
+        const overlay = document.getElementById('custom-modal');
+        const titleEl = document.getElementById('modal-title');
+        const inputEl = document.getElementById('modal-input');
+        titleEl.textContent = title;
+        inputEl.value = defaultValue;
+        inputEl.placeholder = placeholder;
+        overlay.classList.add('active');
+        inputEl.focus();
+        inputEl.select();
+        modalResolver = resolve;
+      });
+    }
+
+    function closeModal(value = null) {
+      document.getElementById('custom-modal').classList.remove('active');
+      if (modalResolver) {
+        modalResolver(value);
+        modalResolver = null;
+      }
+    }
+
+    document.getElementById('modal-submit').addEventListener('click', () => {
+      closeModal(document.getElementById('modal-input').value.trim() || null);
+    });
+    document.getElementById('modal-cancel').addEventListener('click', () => closeModal(null));
+    document.getElementById('modal-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') closeModal(document.getElementById('modal-input').value.trim() || null);
+      if (e.key === 'Escape') closeModal(null);
+    });
+
+    // === 移動先指定モーダル ===
+    let moveTargetEpId = null;
+    function openMoveModal(epId, e) {
+      e.stopPropagation();
+      moveTargetEpId = epId;
+      const select = document.getElementById('move-select');
+      select.innerHTML = '';
+
+      appData.projects.forEach(p => {
+        p.shelves.forEach(s => {
+          const opt = document.createElement('option');
+          opt.value = `${p.id}:${s.id}`;
+          opt.textContent = `${p.title} ➔ ${s.title}`;
+          select.appendChild(opt);
+        });
+      });
+
+      document.getElementById('move-modal').classList.add('active');
+    }
+
+    document.getElementById('move-cancel').addEventListener('click', () => {
+      document.getElementById('move-modal').classList.remove('active');
+    });
+
+    document.getElementById('move-submit').addEventListener('click', () => {
+      const select = document.getElementById('move-select');
+      if (!select.value || !moveTargetEpId) return;
+      const [destProjId, destShelfId] = select.value.split(':');
+
+      let movingEp = null;
+      appData.projects.forEach(p => {
+        p.shelves.forEach(s => {
+          const idx = s.episodes.findIndex(e => e.id === moveTargetEpId);
+          if (idx !== -1) movingEp = s.episodes.splice(idx, 1)[0];
+        });
+      });
+
+      if (movingEp) {
+        const destP = appData.projects.find(p => p.id === destProjId);
+        if (destP) {
+          const destS = destP.shelves.find(s => s.id === destShelfId);
+          if (destS) {
+            destS.episodes.push(movingEp);
+            setDirty();
+            
+            const epEl = document.getElementById(`ep-node-${moveTargetEpId}`);
+            const destShelfEl = document.getElementById(`shelf-node-${destShelfId}`);
+            if (epEl && destShelfEl) {
+              const destEpContainer = destShelfEl.querySelector('.episode-container');
+              if (destEpContainer) destEpContainer.appendChild(epEl);
+            } else {
+              renderTree();
+            }
+
+            if (activeEpisodeId === moveTargetEpId) selectEpisode(moveTargetEpId);
+          }
+        }
+      }
+      document.getElementById('move-modal').classList.remove('active');
+    });
+
+    // === LocalStorage & 保存 ===
+    function loadData() {
+      // 移行サポート: v6のデータがあれば吸い上げる
+      const legacySaved = localStorage.getItem('miniwriter_store_v6');
+      const saved = localStorage.getItem(STORAGE_KEY) || legacySaved;
+      if (saved) {
+        try {
+          appData = JSON.parse(saved);
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    }
+
+    async function executeSave() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+      if (fileHandle) {
+        try {
+          const writable = await fileHandle.createWritable();
+          await writable.write(JSON.stringify(appData, null, 2));
+          await writable.close();
+        } catch (err) {
+          console.warn('実ファイル保存失敗:', err);
+        }
+      }
+      isDirty = false;
+      updateSaveStatus();
+
+      // アイコンを優しく光らせる
+      const statusEl = document.getElementById('save-status');
+      statusEl.classList.add('flash');
+      setTimeout(() => statusEl.classList.remove('flash'), 300);
+    }
+
+    function setDirty() {
+      if (!isDirty) {
+        isDirty = true;
+        updateSaveStatus();
+      }
+    }
+
+    function updateSaveStatus() {
+      const el = document.getElementById('save-status');
+      if (isDirty) {
+        el.className = 'status-unsaved';
+        el.textContent = '●';
+        el.title = '未保存の変更があります (Ctrl+Sで保存)';
+      } else {
+        el.className = 'status-saved';
+        el.textContent = '✔';
+        el.title = '保存済み';
+      }
+    }
+
+    // === 実ファイル連携（無骨ポップアップを完全排除し、開始モーダルを開く） ===
+    async function linkLocalFile() {
+      if (!window.showOpenFilePicker && !window.showSaveFilePicker) {
+        alert('お使いのブラウザは直接同期に対応していません。');
+        return;
+      }
+      document.getElementById('sync-init-modal').classList.add('active');
+    }
+
+    function exportBackupJson() {
+      const dataStr = JSON.stringify(appData, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      const now = new Date();
+      const dateStr = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
+      a.download = `mintwriter_backup_${dateStr}.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    function importBackupJson(file) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const imported = JSON.parse(e.target.result);
+          if (imported.projects && Array.isArray(imported.projects)) {
+            if (confirm('現在の全データがインポートされた内容で上書きされます。よろしいですか？')) {
+              appData = imported;
+              executeSave();
+              activeEpisodeId = null;
+              renderTree();
+              selectEpisode(null);
+            }
+          } else {
+            alert('無効な形式です。');
+          }
+        } catch (err) {
+          alert('復元失敗: ' + err.message);
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function findEpisode(id) {
+      for (const p of appData.projects) {
+        for (const s of p.shelves) {
+          const ep = s.episodes.find(e => e.id === id);
+          if (ep) return { project: p, shelf: s, episode: ep };
+        }
+      }
+      return null;
+    }
+
+    function createEpisodeNode(ep) {
+      const epEl = document.createElement('div');
+      epEl.className = `episode-item ${ep.id === activeEpisodeId ? 'active' : ''}`;
+      epEl.id = `ep-node-${ep.id}`;
+      epEl.innerHTML = `
+        <span>📝</span>
+        <span class="item-title">${escapeHtml(ep.title)}</span>
+        <div class="item-actions">
+          <button class="action-btn" title="エピソード名を変更" onclick="renameEpisode('${ep.id}', event)">✏️</button>
+          <button class="action-btn" title="別の棚へ移動" onclick="openMoveModal('${ep.id}', event)">⇄</button>
+          <button class="action-btn delete" title="削除" onclick="deleteEpisode('${ep.id}', event)">✕</button>
+        </div>
+      `;
+      epEl.addEventListener('click', (e) => {
+        if (e.target.closest('.action-btn')) return;
+        selectEpisode(ep.id);
+        if (window.innerWidth <= 768) {
+          setSidebarOpen(false);
+        }
+      });
+      return epEl;
+    }
+
+    function createShelfNode(projectId, shelf) {
+      const sEl = document.createElement('div');
+      sEl.id = `shelf-node-${shelf.id}`;
+
+      const sHeader = document.createElement('div');
+      sHeader.className = 'shelf-header';
+      sHeader.innerHTML = `
+        <span class="toggle-arrow">▼</span>
+        <span>🗄️</span>
+        <span class="item-title">${escapeHtml(shelf.title)}</span>
+        <div class="item-actions">
+          <button class="action-btn" title="棚名を変更" onclick="renameShelf('${projectId}', '${shelf.id}', event)">✏️</button>
+          <button class="action-btn" title="エピソード追加" onclick="addEpisode('${projectId}', '${shelf.id}', event)">＋話</button>
+          <button class="action-btn delete" title="削除" onclick="deleteShelf('${projectId}', '${shelf.id}', event)">✕</button>
+        </div>
+      `;
+      sHeader.addEventListener('click', (e) => {
+        if (e.target.closest('.item-actions')) return;
+        sHeader.classList.toggle('collapsed');
+      });
+      sEl.appendChild(sHeader);
+
+      const epContainer = document.createElement('div');
+      epContainer.className = 'episode-container';
+      shelf.episodes.forEach(ep => {
+        epContainer.appendChild(createEpisodeNode(ep));
+      });
+
+      sEl.appendChild(epContainer);
+      return sEl;
+    }
+
+    function createProjectNode(project) {
+      const pEl = document.createElement('div');
+      pEl.className = 'tree-project';
+      pEl.id = `project-node-${project.id}`;
+
+      const pHeader = document.createElement('div');
+      pHeader.className = 'project-header';
+      pHeader.innerHTML = `
+        <span class="toggle-arrow">▼</span>
+        <span>📁</span>
+        <span class="item-title">${escapeHtml(project.title)}</span>
+        <div class="item-actions">
+          <button class="action-btn" title="作品名を変更" onclick="renameProject('${project.id}', event)">✏️</button>
+          <button class="action-btn" title="棚を追加" onclick="addShelf('${project.id}', event)">＋棚</button>
+          <button class="action-btn delete" title="削除" onclick="deleteProject('${project.id}', event)">✕</button>
+        </div>
+      `;
+      pHeader.addEventListener('click', (e) => {
+        if (e.target.closest('.item-actions')) return;
+        pHeader.classList.toggle('collapsed');
+      });
+      pEl.appendChild(pHeader);
+
+      const shelfContainer = document.createElement('div');
+      shelfContainer.className = 'shelf-container';
+      project.shelves.forEach(shelf => {
+        shelfContainer.appendChild(createShelfNode(project.id, shelf));
+      });
+
+      pEl.appendChild(shelfContainer);
+      return pEl;
+    }
+
+    function renderTree() {
+      const container = document.getElementById('tree-container');
+      container.innerHTML = '';
+      appData.projects.forEach(project => {
+        container.appendChild(createProjectNode(project));
+      });
+    }
+
+    function selectEpisode(id) {
+      if (activeEpisodeId) {
+        const oldActive = document.getElementById(`ep-node-${activeEpisodeId}`);
+        if (oldActive) oldActive.classList.remove('active');
+      }
+
+      activeEpisodeId = id;
+      const target = findEpisode(id);
+      const editorContainer = document.getElementById('editor-container');
+      const emptyState = document.getElementById('empty-state');
+      const breadcrumb = document.getElementById('current-breadcrumb');
+      const textarea = document.getElementById('editor');
+
+      if (!target) {
+        activeEpisodeId = null;
+        editorContainer.style.display = 'none';
+        emptyState.style.display = 'flex';
+        breadcrumb.textContent = '未選択';
+        breadcrumb.title = '';
+        updateCharCount('');
+        return;
+      }
+
+      const newActive = document.getElementById(`ep-node-${id}`);
+      if (newActive) newActive.classList.add('active');
+
+      emptyState.style.display = 'none';
+      editorContainer.style.display = 'flex';
+      
+      breadcrumb.textContent = target.episode.title;
+      breadcrumb.title = `${target.project.title} / ${target.shelf.title} / ${target.episode.title}`;
+      
+      textarea.value = target.episode.content || '';
+      updateCharCount(textarea.value);
+    }
+
+    function updateCharCount(text) {
+      document.getElementById('char-count').textContent = text.length;
+    }
+
+    async function renameProject(id, e) {
+      e.stopPropagation();
+      const p = appData.projects.find(p => p.id === id);
+      if (!p) return;
+      const newTitle = await showModal('作品名の変更', p.title);
+      if (newTitle && newTitle !== p.title) {
+        p.title = newTitle;
+        setDirty();
+        const titleEl = document.querySelector(`#project-node-${id} > .project-header .item-title`);
+        if (titleEl) titleEl.textContent = newTitle;
+        if (activeEpisodeId) selectEpisode(activeEpisodeId);
+      }
+    }
+
+    async function renameShelf(projectId, shelfId, e) {
+      e.stopPropagation();
+      const p = appData.projects.find(p => p.id === projectId);
+      if (!p) return;
+      const s = p.shelves.find(s => s.id === shelfId);
+      if (!s) return;
+      const newTitle = await showModal('棚名の変更', s.title);
+      if (newTitle && newTitle !== s.title) {
+        s.title = newTitle;
+        setDirty();
+        const titleEl = document.querySelector(`#shelf-node-${shelfId} > .shelf-header .item-title`);
+        if (titleEl) titleEl.textContent = newTitle;
+        if (activeEpisodeId) selectEpisode(activeEpisodeId);
+      }
+    }
+
+    async function renameEpisode(id, e) {
+      e.stopPropagation();
+      const target = findEpisode(id);
+      if (!target) return;
+      const newTitle = await showModal('エピソード名の変更', target.episode.title);
+      if (newTitle && newTitle !== target.episode.title) {
+        target.episode.title = newTitle;
+        setDirty();
+        const titleEl = document.querySelector(`#ep-node-${id} .item-title`);
+        if (titleEl) titleEl.textContent = newTitle;
+        if (activeEpisodeId === id) selectEpisode(id);
+      }
+    }
+
+    async function addProject() {
+      const title = await showModal('新規作品・プロジェクト名', '', '作品タイトル...');
+      if (!title) return;
+      const newProj = {
+        id: 'p_' + Date.now(),
+        title,
+        shelves: [{ id: 's_' + Date.now(), title: '本編', episodes: [] }]
+      };
+      appData.projects.push(newProj);
+      setDirty();
+      document.getElementById('tree-container').appendChild(createProjectNode(newProj));
+    }
+
+    async function addShelf(projectId, e) {
+      e.stopPropagation();
+      const title = await showModal('新規の棚（カテゴリ）名', '', '棚の名前...');
+      if (!title) return;
+      const p = appData.projects.find(p => p.id === projectId);
+      if (p) {
+        const newShelf = { id: 's_' + Date.now(), title, episodes: [] };
+        p.shelves.push(newShelf);
+        setDirty();
+        const projEl = document.getElementById(`project-node-${projectId}`);
+        if (projEl) {
+          projEl.querySelector('.shelf-container').appendChild(createShelfNode(projectId, newShelf));
+        }
+      }
+    }
+
+    async function addEpisode(projectId, shelfId, e) {
+      e.stopPropagation();
+      const title = await showModal('エピソード/メモのタイトル', '', '話数やタイトル...');
+      if (!title) return;
+      const p = appData.projects.find(p => p.id === projectId);
+      if (p) {
+        const s = p.shelves.find(s => s.id === shelfId);
+        if (s) {
+          const newEp = { id: 'e_' + Date.now(), title, content: '' };
+          s.episodes.push(newEp);
+          setDirty();
+          const shelfEl = document.getElementById(`shelf-node-${shelfId}`);
+          if (shelfEl) {
+            shelfEl.querySelector('.episode-container').appendChild(createEpisodeNode(newEp));
+          }
+          selectEpisode(newEp.id);
+        }
+      }
+    }
+
+    function deleteProject(id, e) {
+      e.stopPropagation();
+      if (!confirm('このプロジェクトを丸ごと削除しますか？')) return;
+      appData.projects = appData.projects.filter(p => p.id !== id);
+      const projEl = document.getElementById(`project-node-${id}`);
+      if (projEl) projEl.remove();
+      if (activeEpisodeId && !findEpisode(activeEpisodeId)) selectEpisode(null);
+      setDirty();
+    }
+
+    function deleteShelf(projectId, shelfId, e) {
+      e.stopPropagation();
+      if (!confirm('この棚を削除しますか？')) return;
+      const p = appData.projects.find(p => p.id === projectId);
+      if (p) {
+        p.shelves = p.shelves.filter(s => s.id !== shelfId);
+        const shelfEl = document.getElementById(`shelf-node-${shelfId}`);
+        if (shelfEl) shelfEl.remove();
+        if (activeEpisodeId && !findEpisode(activeEpisodeId)) selectEpisode(null);
+        setDirty();
+      }
+    }
+
+    function deleteEpisode(id, e) {
+      e.stopPropagation();
+      if (!confirm('このエピソードを削除しますか？')) return;
+      for (const p of appData.projects) {
+        for (const s of p.shelves) {
+          s.episodes = s.episodes.filter(ep => ep.id !== id);
+        }
+      }
+      const epEl = document.getElementById(`ep-node-${id}`);
+      if (epEl) epEl.remove();
+      if (activeEpisodeId === id) selectEpisode(null);
+      setDirty();
+    }
+
+    function escapeHtml(str) {
+      return (str || '').replace(/[&<>"']/g, m => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+      }[m]));
+    }
+
+    // === 初期化 ===
+    document.addEventListener('DOMContentLoaded', () => {
+      loadData();
+      renderTree();
+
+      if (appData.projects[0]?.shelves[0]?.episodes[0]) {
+        selectEpisode(appData.projects[0].shelves[0].episodes[0].id);
+      }
+
+      if (window.innerWidth <= 768) {
+        setSidebarOpen(false);
+      } else {
+        setSidebarOpen(true);
+      }
+
+      const textarea = document.getElementById('editor');
+
+      // 本文入力時の未保存（●）即時切り替え
+      textarea.addEventListener('input', () => {
+        if (!activeEpisodeId) return;
+        const target = findEpisode(activeEpisodeId);
+        if (target) {
+          target.episode.content = textarea.value;
+          updateCharCount(textarea.value);
+          setDirty();
+        }
+      });
+
+      window.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+          e.preventDefault();
+          executeSave();
+        }
+      });
+
+      document.getElementById('btn-save-manual').addEventListener('click', executeSave);
+      document.getElementById('btn-sync-file').addEventListener('click', linkLocalFile);
+      document.getElementById('btn-add-project').addEventListener('click', addProject);
+
+      const toggleWritingModeBtn = document.getElementById('btn-toggle-writing-mode');
+      toggleWritingModeBtn.addEventListener('click', () => {
+        textarea.classList.toggle('vertical-mode');
+      });
+
+      // === スマホでも確実に動く本文コピー処理（フォールバック付き） ===
+      document.getElementById('btn-copy-all').addEventListener('click', async () => {
+        if (!activeEpisodeId) return;
+        const text = textarea.value;
+
+        let success = false;
+
+        // 1. 最新のクリップボードAPIを試す
+        if (navigator.clipboard && window.isSecureContext) {
+          try {
+            await navigator.clipboard.writeText(text);
+            success = true;
+          } catch (err) {
+            console.warn('Clipboard API 失敗、フォールバックへ移行:', err);
+          }
+        }
+
+        // 2. スマホ等で弾かれた場合の確実な代替処理（textarea直接選択コピー）
+        if (!success) {
+          try {
+            textarea.focus();
+            textarea.select();
+            textarea.setSelectionRange(0, 999999);
+            success = document.execCommand('copy');
+            textarea.blur();
+          } catch (err) {
+            console.error('コピー失敗:', err);
+          }
+        }
+
+        if (success) {
+          const statusEl = document.getElementById('save-status');
+          statusEl.classList.add('flash');
+          setTimeout(() => statusEl.classList.remove('flash'), 300);
+        }
+      });
+
+      // === 実ファイル連携 開始モーダル（3択）の処理 ===
+      // 1. 新規ファイル作成
+      document.getElementById('btn-init-new').addEventListener('click', async () => {
+        document.getElementById('sync-init-modal').classList.remove('active');
+        try {
+          const handle = await window.showSaveFilePicker({
+            suggestedName: 'mintwriter_backup.json',
+            types: [{ description: 'JSON Files', accept: { 'application/json': ['.json'] } }]
+          });
+          fileHandle = handle;
+          await executeSave();
+          
+          const btn = document.getElementById('btn-sync-file');
+          btn.innerHTML = '🔗 実ファイル <span class="sync-active-badge">✔</span>';
+        } catch (err) {
+          if (err.name !== 'AbortError') console.error(err);
+        }
+      });
+
+      // 2. 既存ファイルを開く
+      document.getElementById('btn-init-open').addEventListener('click', async () => {
+        document.getElementById('sync-init-modal').classList.remove('active');
+        try {
+          const [handle] = await window.showOpenFilePicker({
+            types: [{ description: 'JSON Files', accept: { 'application/json': ['.json'] } }],
+            multiple: false
+          });
+
+          const file = await handle.getFile();
+          const text = await file.text();
+          const imported = JSON.parse(text);
+
+          if (!imported.projects || !Array.isArray(imported.projects)) {
+            alert('無効なファイル形式です。');
+            return;
+          }
+
+          // 既存ファイル読み込み後、方向選択モーダルへ渡す
+          pendingFileHandle = handle;
+          pendingFileData = imported;
+          document.getElementById('sync-choice-modal').classList.add('active');
+        } catch (err) {
+          if (err.name !== 'AbortError') console.error(err);
+        }
+      });
+
+      // 3. キャンセル（操作をやめて執筆画面に戻る）
+      document.getElementById('btn-init-cancel').addEventListener('click', () => {
+        document.getElementById('sync-init-modal').classList.remove('active');
+      });
+
+      // === 実ファイル同期 方向選択モーダル（手元上書き / 読み込み / キャンセル）の処理 ===
+      // 1. 手元の内容をファイルへ上書き（Push）
+      document.getElementById('btn-sync-push').addEventListener('click', async () => {
+        if (pendingFileHandle) {
+          fileHandle = pendingFileHandle;
+          await executeSave();
+          const btn = document.getElementById('btn-sync-file');
+          btn.innerHTML = '🔗 実ファイル <span class="sync-active-badge">✔</span>';
+        }
+        document.getElementById('sync-choice-modal').classList.remove('active');
+      });
+
+      // 2. ファイルの内容を手元に読み込む（Pull）
+      document.getElementById('btn-sync-pull').addEventListener('click', () => {
+        if (pendingFileData && pendingFileHandle) {
+          fileHandle = pendingFileHandle;
+          appData = pendingFileData;
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+          
+          activeEpisodeId = null;
+          renderTree();
+          selectEpisode(null);
+          isDirty = false;
+          updateSaveStatus();
+
+          const btn = document.getElementById('btn-sync-file');
+          btn.innerHTML = '🔗 実ファイル <span class="sync-active-badge">✔</span>';
+
+          const statusEl = document.getElementById('save-status');
+          statusEl.classList.add('flash');
+          setTimeout(() => statusEl.classList.remove('flash'), 300);
+        }
+        document.getElementById('sync-choice-modal').classList.remove('active');
+      });
+
+      // 3. キャンセル
+      document.getElementById('btn-sync-cancel').addEventListener('click', () => {
+        pendingFileHandle = null;
+        pendingFileData = null;
+        document.getElementById('sync-choice-modal').classList.remove('active');
+      });
+
+      document.getElementById('btn-backup-json').addEventListener('click', exportBackupJson);
+      const restoreInput = document.getElementById('file-restore-input');
+      document.getElementById('btn-restore-json').addEventListener('click', () => restoreInput.click());
+      restoreInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+          importBackupJson(e.target.files[0]);
+          e.target.value = '';
+        }
+      });
+
+      document.getElementById('btn-toggle-sidebar').addEventListener('click', toggleSidebar);
+
+      document.getElementById('sidebar-backdrop').addEventListener('click', () => {
+        setSidebarOpen(false);
+      });
+
+      window.addEventListener('beforeunload', (e) => {
+        if (isDirty) {
+          e.preventDefault();
+          e.returnValue = '';
+        }
+      });
+    });
+  </script>
+</body>
+</html>
