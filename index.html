@@ -40,14 +40,15 @@
     }
 
     body {
-      background-color: var(--bg-base);
-      color: var(--text-main);
-      font-family: var(--font-sans);
-      display: flex;
-      height: 100vh;
-      overflow: hidden;
-      position: relative;
-    }
+  background-color: var(--bg-base);
+  color: var(--text-main);
+  font-family: var(--font-sans);
+  display: flex;
+  height: 100vh;
+  height: 100dvh; /* ★スマホのバーが出たり消えたりしてもピッタリ追従する最新指定 */
+  overflow: hidden;
+  position: relative;
+}
 
     /* === サイドバー === */
     #sidebar {
@@ -229,22 +230,26 @@
 
     /* === メインエディタ === */
     #main-content {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      background-color: var(--bg-base);
-      position: relative;
-      width: 100%;
-    }
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-base);
+  position: relative;
+  width: 100%;
+  height: 100%;       /* ★追加：親の枠からはみ出さない */
+  max-height: 100dvh; /* ★追加：画面の高さ以上には絶対に伸びない */
+  overflow: hidden;   /* ★追加：ヘッダーごと画面全体がスクロールするのを防ぐ */
+}
 
     .top-toolbar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 0 16px 0 0;
-      border-bottom: 1px solid var(--bg-surface);
-      height: 48px;
-    }
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 16px 0 0;
+  border-bottom: 1px solid var(--bg-surface);
+  height: 48px;
+  flex-shrink: 0; /* ★追加：「何があっても縦幅48pxを維持して縮むな！」という命令 */
+}
 
     .toolbar-left {
       display: flex;
